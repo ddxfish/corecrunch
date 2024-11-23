@@ -36,7 +36,6 @@ pub fn run_monte_carlo_pi(processes: usize, intensity: u32) -> BenchResult {
     BenchResult::new(
         "Monte Carlo Pi",
         duration,
-        total_points as u64,
         "Error %",
         error,
     )
@@ -109,8 +108,7 @@ pub fn run_prime_sieve(processes: usize, intensity: u32) -> BenchResult {
     BenchResult::new(
         "Prime Sieve",
         duration,
-        max_n as u64,
-        "Primes Found",
+        "Primes",
         total_primes as f64,
     )
 }
@@ -190,7 +188,6 @@ pub fn run_nbody_sim(processes: usize, intensity: u32) -> BenchResult {
     BenchResult::new(
         "N-Body Simulation",
         duration,
-        operations,
         "GFLOPS",
         gflops,
     )

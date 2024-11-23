@@ -7,17 +7,15 @@ use rand::prelude::*;
 pub struct BenchResult {
     pub name: String,
     pub duration: Duration,
-    pub operations: u64,
     pub metric_name: String,
     pub metric_value: f64,
 }
 
 impl BenchResult {
-    pub fn new(name: &str, duration: Duration, operations: u64, metric_name: &str, metric_value: f64) -> Self {
+    pub fn new(name: &str, duration: Duration, metric_name: &str, metric_value: f64) -> Self {
         Self {
             name: name.to_string(),
             duration,
-            operations,
             metric_name: metric_name.to_string(),
             metric_value,
         }
@@ -54,7 +52,7 @@ pub fn run_fft_benchmark(processes: usize, intensity: u32) -> BenchResult {
     let operations = size as u64 * (size as f64).log2() as u64 * 5; // Adjusted for iterations
     let gflops = (operations as f64) / duration.as_secs_f64() / 1e9;
     
-    BenchResult::new("FFT", duration, operations, "GFLOPS", gflops)
+    BenchResult::new("FFT", duration, "GFLOPS", gflops)
 }
 
 pub fn run_sha256_benchmark(processes: usize, intensity: u32) -> BenchResult {
@@ -78,10 +76,9 @@ pub fn run_sha256_benchmark(processes: usize, intensity: u32) -> BenchResult {
     }
     
     let duration = start.elapsed();
-    let operations = size as u64 * 3; // Adjusted for iterations
     let gbps = (size as f64 * 3.0) / duration.as_secs_f64() / 1e9;
     
-    BenchResult::new("SHA-256", duration, operations, "GB/s", gbps)
+    BenchResult::new("SHA-256", duration, "GB/s", gbps)
 }
 
 pub fn run_matrix_benchmark(_processes: usize, intensity: u32) -> BenchResult {
@@ -145,7 +142,7 @@ pub fn run_matrix_benchmark(_processes: usize, intensity: u32) -> BenchResult {
     let operations = 2 * size as u64 * size as u64 * size as u64;
     let gflops = (operations as f64) / duration.as_secs_f64() / 1e9;
     
-    BenchResult::new("Matrix Multiplication", duration, operations, "GFLOPS", gflops)
+    BenchResult::new("Matrix Multiplication", duration, "GFLOPS", gflops)
 }
 
 pub fn run_fp_benchmark(processes: usize, intensity: u32) -> BenchResult {
@@ -172,7 +169,7 @@ pub fn run_fp_benchmark(processes: usize, intensity: u32) -> BenchResult {
     let operations = iterations as u64 * 12; // Adjusted for added operations
     let gflops = (operations as f64) / duration.as_secs_f64() / 1e9;
     
-    BenchResult::new("Floating Point Ops", duration, operations, "GFLOPS", gflops)
+    BenchResult::new("Floating Point Ops", duration, "GFLOPS", gflops)
 }
 
 pub fn run_all_low_level(processes: usize, intensity: u32) -> Vec<BenchResult> {

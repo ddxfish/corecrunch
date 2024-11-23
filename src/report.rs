@@ -83,23 +83,23 @@ impl BenchmarkReport {
         table.add_row(Row::new(header));
         
         // Create a simple 10-dash separator
-        let separator = "────────────────────";
+        let separator = " ";
         
         // Low Level Tests section
         table.add_empty_row();
-        table.add_row(Row::new(vec![Cell::new("Low Level Tests").style_spec("bi").with_hspan(self.core_counts.len() + 1)]));
+        table.add_row(Row::new(vec![Cell::new("===Low Level Tests===").style_spec("bi").with_hspan(self.core_counts.len() + 1)]));
         table.add_row(Row::new(vec![Cell::new(separator).with_hspan(self.core_counts.len() + 1)]));
         self.add_benchmark_section(&mut table, &self.low_level_results);
         
         // Real World Tests section
         table.add_empty_row();
-        table.add_row(Row::new(vec![Cell::new("Real World Tests").style_spec("bi").with_hspan(self.core_counts.len() + 1)]));
+        table.add_row(Row::new(vec![Cell::new("===Real World Tests===").style_spec("bi").with_hspan(self.core_counts.len() + 1)]));
         table.add_row(Row::new(vec![Cell::new(separator).with_hspan(self.core_counts.len() + 1)]));
         self.add_benchmark_section(&mut table, &self.real_world_results);
         
         // Scaling section
         table.add_empty_row();
-        table.add_row(Row::new(vec![Cell::new("Scaling").style_spec("bi").with_hspan(self.core_counts.len() + 1)]));
+        table.add_row(Row::new(vec![Cell::new("===Scaling===").style_spec("bi").with_hspan(self.core_counts.len() + 1)]));
         table.add_row(Row::new(vec![Cell::new(separator).with_hspan(self.core_counts.len() + 1)]));
         self.add_scaling_metrics(&mut table);
         
