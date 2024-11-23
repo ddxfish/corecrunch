@@ -2,6 +2,8 @@
 
 A comprehensive CPU benchmark tool written in Rust that tests both low-level CPU operations and real-world computational tasks. The benchmark runs tests across different core counts to measure parallel processing efficiency and scaling, providing detailed metrics for each test including execution time, performance metrics (GFLOPS, GB/s), and parallel efficiency. Finally a Rust app with zero compiler warnings. This one came out great. 
 
+![image](https://github.com/user-attachments/assets/ada30db5-93df-44bb-a6e3-2d48e7dba34a)
+
 ## Tests
 
 ### Low Level Tests
