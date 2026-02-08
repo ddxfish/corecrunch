@@ -56,6 +56,17 @@ struct Args {
 fn main() -> Result<(), Box<dyn Error>> {
     let args = Args::parse();
 
+    println!(r#"
+┌───────────────────────────────────────────────────────┐
+│  ____                ____                       _     │
+│ / ___|___  _ __ ___ / ___|_ __ _   _ _ __   ___| |__  │
+│| |   / _ \| '__/ _ \ |   | '__| | | | '_ \ / __| '_ \ │
+│| |__| (_) | | |  __/ |___| |  | |_| | | | | (__| | | |│
+│ \____\___/|_|  \___|\____|_|   \__,_|_| |_|\___|_| |_|│
+└───────────────────────────────────────────────────────┘
+                                   by ddxfish
+"#);
+
     let system_info = SystemInfo::collect()?;
     println!("{}", system_info.format_summary());
 
@@ -152,10 +163,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         legacy_results,
         process_counts,
         temp_data,
+        total_duration,
     );
 
     println!("\n{}", report.generate_report());
-    println!("\nTotal benchmark time: {:.1} seconds", total_duration.as_secs_f64());
 
     // Prevent immediate closure by waiting for user input
     print!("\nPress Enter to exit...");

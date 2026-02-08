@@ -3,6 +3,23 @@ use crate::system_info::SystemMetrics;
 use crate::bench_low::BenchResult;
 use std::time::Duration;
 
+// Baseline values for scoring (calibrated so a mid-range modern CPU ≈ 1000)
+// CPU benchmarks — single-core baselines
+const BASE_AVX2_FP: f64 = 15.0;       // GFLOPS
+const BASE_AES_NI: f64 = 70.0;        // GB/s
+const BASE_SHA_EXT: f64 = 900.0;      // Mrounds/s
+const BASE_CRC32: f64 = 28.0;         // GB/s
+const BASE_AVX2_INT: f64 = 350.0;     // GOPS
+// Real-world baselines
+const BASE_LLM: f64 = 2.0;           // GFLOPS
+const BASE_GZIP: f64 = 100.0;         // MB/s
+const BASE_BLUR: f64 = 15.0;          // Mpix/s
+const BASE_SORT: f64 = 12.0;          // Mrec/s
+// Memory baselines
+const BASE_SEQ_READ: f64 = 7.0;       // GB/s
+const BASE_SEQ_WRITE: f64 = 3.5;      // GB/s
+const BASE_MEM_LATENCY: f64 = 120.0;  // ns (inverted: lower = better)
+
 pub struct BenchmarkReport {
     system_metrics: SystemMetrics,
     low_level_results: Vec<Vec<BenchResult>>,
@@ -11,6 +28,7 @@ pub struct BenchmarkReport {
     legacy_results: Vec<Vec<BenchResult>>,
     core_counts: Vec<usize>,
     temp_data: Option<Vec<Option<(f32, f32)>>>,
+    total_duration: Duration,
 }
 
 impl BenchmarkReport {
@@ -22,6 +40,7 @@ impl BenchmarkReport {
         legacy: Vec<Vec<BenchResult>>,
         cores: Vec<usize>,
         temp_data: Option<Vec<Option<(f32, f32)>>>,
+        total_duration: Duration,
     ) -> Self {
         Self {
             system_metrics,
@@ -31,6 +50,7 @@ impl BenchmarkReport {
             legacy_results: legacy,
             core_counts: cores,
             temp_data,
+            total_duration,
         }
     }
 
@@ -49,6 +69,66 @@ impl BenchmarkReport {
             format!("{:.1}K", value / 1000.0)
         } else {
             format!("{:.2}", value)
+        }
+    }
+
+    fn format_score(score: f64) -> String {
+        if score >= 1000.0 {
+            format!("{:.0}", score)
+        } else {
+            format!("{:.0}", score)
+        }
+    }
+
+    /// Get the baseline for a given test name. Returns (baseline, inverted).
+    /// inverted=true means lower metric_value is better (e.g. latency in ns).
+    fn baseline_for(name: &str) -> Option<(f64, bool)> {
+        match name {
+            "AVX2 FP Throughput" => Some((BASE_AVX2_FP, false)),
+            "AES-NI Throughput" => Some((BASE_AES_NI, false)),
+            "SHA Extensions" => Some((BASE_SHA_EXT, false)),
+            "SSE4.2 CRC32" => Some((BASE_CRC32, false)),
+            "AVX2 Integer SIMD" => Some((BASE_AVX2_INT, false)),
+            "LLM Inference Sim" => Some((BASE_LLM, false)),
+            "Gzip Compress" => Some((BASE_GZIP, false)),
+            "Image Blur (5x5)" => Some((BASE_BLUR, false)),
+            "Dataset Sort" => Some((BASE_SORT, false)),
+            "Seq Read Bandwidth" => Some((BASE_SEQ_READ, false)),
+            "Seq Write Bandwidth" => Some((BASE_SEQ_WRITE, false)),
+            "Memory Latency" => Some((BASE_MEM_LATENCY, true)),
+            _ => None,
+        }
+    }
+
+    /// Compute geometric mean score from a set of results at a given core-count index.
+    fn compute_score(results_sets: &[&Vec<Vec<BenchResult>>], idx: usize) -> Option<f64> {
+        let mut log_sum = 0.0;
+        let mut count = 0u32;
+
+        for results in results_sets {
+            if results.is_empty() || idx >= results.len() {
+                continue;
+            }
+            for bench in &results[idx] {
+                if !bench.supported || bench.metric_value <= 0.0 {
+                    continue;
+                }
+                if let Some((baseline, inverted)) = Self::baseline_for(&bench.name) {
+                    let ratio = if inverted {
+                        baseline / bench.metric_value
+                    } else {
+                        bench.metric_value / baseline
+                    };
+                    log_sum += ratio.ln();
+                    count += 1;
+                }
+            }
+        }
+
+        if count == 0 {
+            None
+        } else {
+            Some((log_sum / count as f64).exp() * 1000.0)
         }
     }
 
@@ -157,7 +237,81 @@ impl BenchmarkReport {
         }
 
         output.push_str(&table.to_string());
+
+        // Scores section
+        output.push_str(&self.generate_scores());
+
         output
+    }
+
+    fn generate_scores(&self) -> String {
+        let mut lines = Vec::new();
+        let w = 54; // inner width of the box
+
+        // CPU tests = low-level + real-world
+        let cpu_refs: Vec<&Vec<Vec<BenchResult>>> = vec![&self.low_level_results, &self.real_world_results];
+        let mem_refs: Vec<&Vec<Vec<BenchResult>>> = vec![&self.memory_results];
+
+        let last = self.core_counts.len().saturating_sub(1);
+
+        let cpu_single = Self::compute_score(&cpu_refs, 0);
+        let cpu_multi = if last > 0 { Self::compute_score(&cpu_refs, last) } else { None };
+        let mem_score = Self::compute_score(&mem_refs, 0);
+
+        // Overall = geometric mean of available scores
+        let mut all_scores = Vec::new();
+        if let Some(s) = cpu_single { all_scores.push(s); }
+        if let Some(s) = cpu_multi { all_scores.push(s); }
+        if let Some(s) = mem_score { all_scores.push(s); }
+
+        let overall = if !all_scores.is_empty() {
+            let log_sum: f64 = all_scores.iter().map(|s| s.ln()).sum();
+            Some((log_sum / all_scores.len() as f64).exp())
+        } else {
+            None
+        };
+
+        if cpu_single.is_none() && cpu_multi.is_none() && mem_score.is_none() {
+            return String::new();
+        }
+
+        let row = |s: &str| format!("║{:<w$}║", s, w = w);
+        let sep: String = "═".repeat(w);
+        let mid: String = "─".repeat(w);
+
+        lines.push(String::new());
+        lines.push(format!("╔{}╗", sep));
+        lines.push(row("  CORECRUNCH SCORES"));
+
+        // CPU section
+        if cpu_single.is_some() || cpu_multi.is_some() {
+            lines.push(format!("╠{}╣", mid));
+            lines.push(row(&format!("  {}", self.system_metrics.cpu_name)));
+            if let Some(s) = cpu_single {
+                let ms = cpu_multi.map_or("  N/A".to_string(), |m| format!("{:>5}", Self::format_score(m)));
+                lines.push(row(&format!("  Single-Core: {:>5}         Multi-Core: {}", Self::format_score(s), ms)));
+            }
+        }
+
+        // Memory section
+        if let Some(s) = mem_score {
+            lines.push(format!("╠{}╣", mid));
+            let mem_gb = self.system_metrics.memory_total as f64 / 1024.0 / 1024.0 / 1024.0;
+            lines.push(row(&format!("  {:.0} GB RAM", mem_gb)));
+            lines.push(row(&format!("  Memory Score: {:>5}", Self::format_score(s))));
+        }
+
+        // Overall + time section
+        lines.push(format!("╠{}╣", mid));
+        if let Some(g) = overall {
+            lines.push(row(&format!("  ★ Overall:    {:>5}", Self::format_score(g))));
+        }
+        let time_str = format!("{:.1}s", self.total_duration.as_secs_f64());
+        lines.push(row(&format!("  Time:         {:>5}", time_str)));
+
+        lines.push(format!("╚{}╝", sep));
+
+        lines.join("\n")
     }
 
     fn add_benchmark_section(&self, table: &mut Table, results: &[Vec<BenchResult>]) {
